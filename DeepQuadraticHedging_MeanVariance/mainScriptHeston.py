@@ -1,3 +1,4 @@
+# region Imports
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -12,23 +13,26 @@ import time
 import munch
 import sys
 import os
+# endregion
 
 if __name__ == "__main__":
 
-    ## Specify if we want to train the model (and save it), or to load it   
-    train_model = False # If this is False, the next is not checked 
+    # region Control flags
+    ## Specify if we want to train the model (and save it), or to load it
+    train_model = False # If this is False, the next is not checked
     save_model = True
 
-    ## Specify if we want to simulate new trajectories (and save them), or to load them   
-    simulate_trajectories = False  # If this is False, the next is not checked      
+    ## Specify if we want to simulate new trajectories (and save them), or to load them
+    simulate_trajectories = False  # If this is False, the next is not checked
     save_trajectories = True
- 
+
     ## Specify if we want to create the figures (and save them)
     create_figures = False
     save_figures = True
+    # endregion
 
-    
-    ## Setting
+
+    # region Problem parameters
    
     num_time_interval = 10
 
@@ -53,11 +57,14 @@ if __name__ == "__main__":
     mu = 0.1
 
     print('Feller condition satisfied: ', bool(2*kappa*theta > sigma**2))
+    # endregion
 
+    # region Directory setup
     ## Specify the name of the directory where model and simulations lie
     path_dir = 'MeanVariance{}points_new'.format(num_time_interval)
-  
-    ## Algorithm 1 configuration
+    # endregion
+
+    # region Algorithm config — BSDE 1
 
     config = {
                 "eqn_config": {
@@ -93,17 +100,20 @@ if __name__ == "__main__":
                }
             }
 
-    config = munch.munchify(config) 
+    config = munch.munchify(config)
     bsde = getattr(eqn, config.eqn_config.eqn_name)(config.eqn_config)
     tf.keras.backend.set_floatx(config.net_config.dtype)
-    
-    sys.exit(0)   
+    # endregion
+
+    sys.exit(0)
+    # region MC benchmark simulation
     Psim = 100000
     dwb_testQ, xv_testQ = bsde.sample_underQ(Psim, v_trunc)
     MC_priceQ = np.mean(np.maximum(xv_testQ[:, 0, -1] - strike, 0)) * np.exp(-r * total_time)
     print('MC price under Q  = ', MC_priceQ)
+    # endregion
 
-    ## Apply algorithm 1 
+    # region Train / Load BSDE 1 
     
     bsde_solver = BSDESolver(config, bsde)
  
@@ -135,9 +145,9 @@ if __name__ == "__main__":
         path = path_dir +  '/Model1_MV{}points'.format(num_time_interval)
         bsde_solver.model.load_model(path)
         training_history1 = np.load(path_dir + '/training_history1_{}.npy'.format(num_time_interval))
+    # endregion
 
-
-    ## Algorithm 2 configuration
+    # region Algorithm config — BSDE 2
     
     configMVP = {
                 "eqn_config": {
@@ -170,9 +180,9 @@ if __name__ == "__main__":
     configMVP = munch.munchify(configMVP) 
     mvpbsde = getattr(receqn, configMVP.eqn_config.eqn_name)(configMVP.eqn_config) 
     tf.keras.backend.set_floatx(configMVP.net_config.dtype)
-    
-    
-    ## Apply algorithm 2
+    # endregion
+
+    # region Train / Load BSDE 2
     
     mvp_solver = RecSolver(configMVP, mvpbsde)
  
@@ -197,13 +207,14 @@ if __name__ == "__main__":
         path = path_dir +  '/Model2_MV{}points'.format(num_time_interval)
         mvp_solver.model.load_model(path)
         training_history2 = np.load(path_dir + '/training_history2_{}.npy'.format(num_time_interval))
+    # endregion
 
-   
     '''
-    
+
     Computing controls and hedging strategies
- 
+
     '''
+    # region Trajectory simulation
     if simulate_trajectories:
 
         ## Simulate trajectories
@@ -257,17 +268,20 @@ if __name__ == "__main__":
  
     BSDE_price = mvp_test[0, 0]
     print('BSDE price = ', BSDE_price, ', ', np.abs(MC_priceQ-BSDE_price)/MC_priceQ*100, '%')
+    # endregion
 
-    ## Compute the strategies with the BSDE approach
+    # region Strategy computation
  
     csi0_MV, csi_MV = mvpbsde.WealthSDE(Psim, np.squeeze(xv_test[:, dim:, :]), np.squeeze(dwb_test[:, :dim, :]),  np.squeeze(rn_test), np.squeeze(mvp_test), np.squeeze(lambdas_test[:, :dim, :]), np.squeeze(etas_test[:, :dim, :])) 
     csi_MV = np.divide(csi_MV, np.squeeze(xv_test[:, :dim, :num_time_interval]))
     csi0_MV_hat = csi0_MV/np.squeeze(xv_test[:, :dim, :num_time_interval])
+    # endregion
 
+    # region Benchmark comparison
     '''
 
     Testing the solution in comparison to Cerny and Kallsen's solutions
-    
+
     '''
     
     ## Compute the solution to the PDE  
@@ -335,9 +349,10 @@ if __name__ == "__main__":
     ## Compute the strategies in the Cerny and Kallsen's approach
 
     csi0_CK, csi_CK = bsde.CKWealthSDE(Psim, price_pde, np.squeeze(xv_test[:, :dim, :]), dirac_s, dirac_v)
-    csi0_CK_hat = csi0_CK/np.squeeze(xv_test[:, :dim, :num_time_interval]) 
+    csi0_CK_hat = csi0_CK/np.squeeze(xv_test[:, :dim, :num_time_interval])
+    # endregion
 
-    ## Compute the MSE
+    # region MSE computation
 
     MSEP_t = (mvp_test-price_pde)**2
     MSEP_t = np.mean(MSEP_t, axis = 0)
@@ -354,11 +369,13 @@ if __name__ == "__main__":
         np.save(path_dir + '/mse_price{}.npy'.format(num_time_interval), MSEP_t)
         np.save(path_dir + '/mse_shares{}.npy'.format(num_time_interval), MSE_t)
         np.save(path_dir + '/mse_units{}.npy'.format(num_time_interval), MSE0_t)
+    # endregion
 
+    # region Plotting
     '''
-    
+
     PLOTS
-    
+
     '''
     if create_figures:
  
@@ -524,5 +541,4 @@ if __name__ == "__main__":
         plt.legend(['N = 100', 'N = 50', 'N = 10', 'N = 100 mean', 'N = 50 mean', 'N = 10 mean'], fontsize = 30, ncol = 2)
         f10.savefig('MSE_shares.pdf', bbox_inches = 'tight', pad_inches = 0.01)
 '''
-
-
+    # endregion

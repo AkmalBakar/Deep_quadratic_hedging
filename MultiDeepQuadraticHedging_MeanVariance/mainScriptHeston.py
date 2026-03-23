@@ -1,3 +1,4 @@
+# region Imports
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -11,23 +12,26 @@ import munch
 import time
 import sys
 import os
+# endregion
 
 if __name__ == "__main__":
 
-    ## Specify if we want to train the model (and save it), or to load it   
-    train_model = True # If this is False, the next is not checked 
+    # region Control flags
+    ## Specify if we want to train the model (and save it), or to load it
+    train_model = True # If this is False, the next is not checked
     save_model = True
 
-    ## Specify if we want to simulate new trajectories (and save them), or to load them   
-    simulate_trajectories = True  # If this is False, the next is not checked      
+    ## Specify if we want to simulate new trajectories (and save them), or to load them
+    simulate_trajectories = True  # If this is False, the next is not checked
     save_trajectories = False
- 
+
     ## Specify if we want to create the figures (and save them)
     create_figures = True
     save_figures = True
+    # endregion
 
-    
-    ## Setting
+
+    # region Problem parameters
    
     num_time_interval = 100
 
@@ -53,11 +57,14 @@ if __name__ == "__main__":
     r = 0.0
     B = 0.1 * np.diag(np.ones(dim_nohedge))
     A = 1.0 * np.diag(np.ones(dim_nohedge))
- 
+    # endregion
+
+    # region Directory setup
     ## Specify the name of the directory where model and simulations lie
     path_dir = 'MeanVariance{}points_{}dimensional_1'.format(num_time_interval, dim)
-  
-    ## Algorithm 1 configuration
+    # endregion
+
+    # region Algorithm config — BSDE 1
 
     config = {
                 "eqn_config": {
@@ -95,19 +102,19 @@ if __name__ == "__main__":
                 }
             }
 
-    config = munch.munchify(config) 
+    config = munch.munchify(config)
     bsde = getattr(eqn, config.eqn_config.eqn_name)(config.eqn_config)
     tf.keras.backend.set_floatx(config.net_config.dtype)
- 
+    # endregion
 
-    ## Simulate the process under Q so to narrow the range for y in the BSDE solver 
+    # region MC benchmark simulation 
     Psim = 100000
     dwb_testQ, xv_testQ = bsde.sample_underQ(Psim, v_trunc)
     MC_priceQ = np.mean(np.maximum(np.sum(xv_testQ[:, :dim, -1], axis = 1) - dim * strike, 0)) * np.exp(-r * total_time)
     print('MC price under Q  = ', MC_priceQ)
+    # endregion
 
-
-    ## Apply algorithm 1 
+    # region Train / Load BSDE 1 
     
     bsde_solver = BSDESolver(config, bsde)
  
@@ -142,11 +149,9 @@ if __name__ == "__main__":
         path = path_dir +  '/Model1_MV{}points_{}dim'.format(num_time_interval, dim)
         bsde_solver.model.load_model(path)
         training_history1 = np.load(path_dir + '/training_history1_{}_{}dim.npy'.format(num_time_interval, dim))
+    # endregion
 
-
-    
-
-    ## Algorithm 2 configuration
+    # region Algorithm config — BSDE 2
     
     configMVP = {
                 "eqn_config": {
@@ -181,9 +186,9 @@ if __name__ == "__main__":
     configMVP = munch.munchify(configMVP) 
     mvpbsde = getattr(receqn, configMVP.eqn_config.eqn_name)(configMVP.eqn_config) 
     tf.keras.backend.set_floatx(configMVP.net_config.dtype)
-    
-    
-    ## Apply algorithm 2
+    # endregion
+
+    # region Train / Load BSDE 2
     
     mvp_solver = RecSolver(configMVP, mvpbsde)
  
@@ -209,13 +214,14 @@ if __name__ == "__main__":
         path = path_dir +  '/Model2_MV{}points_{}dim'.format(num_time_interval, dim)
         mvp_solver.model.load_model(path)
         training_history2 = np.load(path_dir + '/training_history2_{}_{}dim.npy'.format(num_time_interval, dim))
+    # endregion
 
-   
     '''
-    
+
     Computing controls and hedging strategies
- 
+
     '''
+    # region Trajectory simulation
     if simulate_trajectories:
 
         ## Simulate trajectories
@@ -292,12 +298,13 @@ if __name__ == "__main__":
     csi0_MV, csi_MV = mvpbsde.WealthSDE(P, np.squeeze(xv_test[:, dim:, :]), np.squeeze(dwb_test[:, :dim, :]),  np.squeeze(rn_test), np.squeeze(mvp_test), np.squeeze(lambdas_test[:, :dim, :]), np.squeeze(etas_test[:, :dim, :])) 
     csi_MV = np.divide(csi_MV, np.squeeze(xv_test[:, :dim, :num_time_interval]))
     '''
+    # endregion
 
-   
+    # region Plotting
     '''
-    
+
     PLOTS
-    
+
     '''
     if create_figures:
 
@@ -337,7 +344,5 @@ if __name__ == "__main__":
 
         if save_figures:
             f1.savefig(path_dir + '/Log_loss{}_{}dim.pdf'.format(num_time_interval, dim), bbox_inches = 'tight', pad_inches = 0.01)
-
-
-
+    # endregion
 

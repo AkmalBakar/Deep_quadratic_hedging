@@ -1,3 +1,4 @@
+# region Imports
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -10,23 +11,26 @@ import sys
 import os
 import random
 import time
+# endregion
 
 if __name__ == "__main__":
 
-    ## Specify if we want to train the model (and save it), or to load it   
-    train_model = True  # If this is False, the next is not checked 
+    # region Control flags
+    ## Specify if we want to train the model (and save it), or to load it
+    train_model = True  # If this is False, the next is not checked
     save_model = True
 
-    ## Specify if we want to simulate new trajectories (and save them), or to load them   
-    simulate_trajectories = True  # If this is False, the next is not checked  
+    ## Specify if we want to simulate new trajectories (and save them), or to load them
+    simulate_trajectories = True  # If this is False, the next is not checked
     save_trajectories = False
- 
+
     ## Specify if we want to create the figures (and save them)
-    create_figures = True  # If this is False, the next is not checked 
+    create_figures = True  # If this is False, the next is not checked
     save_figures = True
+    # endregion
 
 
-    ## Setting
+    # region Problem parameters
  
     num_time_interval = 100
 
@@ -48,15 +52,18 @@ if __name__ == "__main__":
     rho = -0.45 * np.ones(dim_nohedge)
    
     print('Feller condition satisfied: ', bool(np.prod(2*kappa*theta > sigma**2)))
- 
+
     r = 0.0
-    B = 0.1 * np.diag(np.ones(dim_nohedge))     
-    A = 1.0 * np.diag(np.ones(dim_nohedge)) 
-    
+    B = 0.1 * np.diag(np.ones(dim_nohedge))
+    A = 1.0 * np.diag(np.ones(dim_nohedge))
+    # endregion
+
+    # region Directory setup
     ## Specify the name of the directory where model and simulations lie
     path_dir = 'LocalRisk{}points_{}dimensional_0'.format(num_time_interval, dim)
-    
-    ## Algorithm configuration   
+    # endregion
+
+    # region Algorithm config — BSDE 1   
     
     config = {
                 "eqn_config": {
@@ -94,21 +101,24 @@ if __name__ == "__main__":
                 }
             }
     
-    config = munch.munchify(config) 
+    config = munch.munchify(config)
     bsde = getattr(eqn, config.eqn_config.eqn_name)(config.eqn_config)
     tf.keras.backend.set_floatx(config.net_config.dtype)
-    sys.exit(0) 
-    
+    # endregion
+
+    sys.exit(0)
+    # region MC benchmark simulation 
     ## Simulate the process under Q so to narrow the range for y in the BSDE solver 
     P_sim = 100000
     dwb_testQ, xv_testQ = bsde.sample_underQ(P_sim, v_trunc)
     MC_priceQ = np.mean(np.maximum(np.sum(xv_testQ[:, :dim, -1], axis = 1) - dim * strike, 0))* np.exp(-r * total_time)
     config.net_config['y_init_range'] = [np.maximum(int(MC_priceQ * 0.95), 0), int(MC_priceQ * 1.05)]
     
-    print('MC price under Q = ', MC_priceQ)   
+    print('MC price under Q = ', MC_priceQ)
+    # endregion
 
+    # region Train / Load BSDE 1
     #sys.exit(0)
-    ## Apply algorithm
     bsde_solver = BSDESolver(config, bsde)
     
     if train_model:
@@ -140,13 +150,15 @@ if __name__ == "__main__":
         path = path_dir +  '/Model_LR{}points_{}dim'.format(num_time_interval, dim)
         bsde_solver.model.load_model(path)
         training_history = np.load(path_dir + '/training_history{}_{}dim.npy'.format(num_time_interval, dim))
+    # endregion
 
     '''
-   
+
     Computing controls and hedging strategies
-    
+
     '''
-    
+
+    # region Trajectory simulation
     if simulate_trajectories:
             
         ## Simulate trajectories   
@@ -188,12 +200,13 @@ if __name__ == "__main__":
   
     #np.save(path_dir + '/BSDEprice{}_{}dim.npy'.format(num_time_interval, dim), BSDE_price)
     #np.save(path_dir + '/MCprice{}_{}dim.npy'.format(num_time_interval, dim), MC_priceQ)
- 
-    
+    # endregion
+
+    # region Plotting
     '''
-    
+
     PLOTS
-    
+
     '''
     if create_figures:
  
@@ -215,3 +228,4 @@ if __name__ == "__main__":
 
         if save_figures:
             f1.savefig(path_dir + '/Log_loss{}_{}dim.pdf'.format(num_time_interval, dim), bbox_inches = 'tight', pad_inches = 0.01)
+    # endregion

@@ -1,3 +1,4 @@
+# region Imports
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
@@ -10,23 +11,26 @@ import time
 import munch
 import sys
 import os
+# endregion
 
 if __name__ == "__main__":
 
-    # Specify if we want to train the model (and save it), or to load it   
+    # region Control flags
+    # Specify if we want to train the model (and save it), or to load it
     train_model = True
     save_model = True
 
-    # Specify if we want to simulate new trajectories (and save them), or to load them   
-    simulate_trajectories = True    
+    # Specify if we want to simulate new trajectories (and save them), or to load them
+    simulate_trajectories = True
     save_trajectories = True
- 
+
     # Specify if we want to create the figures (and save them)
     create_figures = True
     save_figures = True
+    # endregion
 
 
-    ## Setting
+    # region Problem parameters
  
     num_time_interval = 100
 
@@ -51,11 +55,14 @@ if __name__ == "__main__":
     mu = 0.1
 
     print('Feller condition satisfied: ', bool(2*kappa*theta > sigma**2))
+    # endregion
 
+    # region Directory setup
     # Specify the name of the directory where model and simulations lie
     path_dir = 'LocalRisk{}points'.format(num_time_interval)
-    
-    ## Algorithm configuration   
+    # endregion
+
+    # region Algorithm config — BSDE 1   
     
     config = {
                 "eqn_config": {
@@ -91,12 +98,13 @@ if __name__ == "__main__":
                 }
             }
     
-    config = munch.munchify(config) 
+    config = munch.munchify(config)
     bsde = getattr(eqn, config.eqn_config.eqn_name)(config.eqn_config)
     tf.keras.backend.set_floatx(config.net_config.dtype)
-    
+    # endregion
 
     sys.exit(0)
+    # region MC benchmark simulation 
     ## Simulate the process under Q so to narrow the range for y in the BSDE solver 
     Psim = 100000
     dwb_testQ, xv_testQ = bsde.sample_underQ(Psim, v_trunc)
@@ -105,9 +113,10 @@ if __name__ == "__main__":
 
 
     config.net_config['y_init_range'] = [np.maximum(int(MC_priceQ * 0.95), 0), int(MC_priceQ * 1.05)]
+    # endregion
 
 
-    ## Apply algorithm
+    # region Train / Load BSDE 1
     
     bsde_solver = BSDESolver(config, bsde)
     
@@ -138,12 +147,14 @@ if __name__ == "__main__":
         path = path_dir +  '/Model_LR{}points'.format(num_time_interval)
         bsde_solver.model.load_model(path)
         training_history = np.load(path_dir + '/training_history{}.npy'.format(num_time_interval))
+    # endregion
 
     '''
-   
+
     Computing controls and hedging strategies
-    
+
     '''
+    # region Trajectory simulation
        
     if simulate_trajectories:
             
@@ -182,19 +193,21 @@ if __name__ == "__main__":
     
     BSDE_price = lr_test[0, 0]
     print('BSDE price = ', BSDE_price, ', ', np.abs(MC_priceQ-BSDE_price)/MC_priceQ*100, '%')
-    
-    
+    # endregion
 
-    ## Compute the strategies in the BSDE approach
+
+    # region Strategy computation
 
     csi_LR = np.divide(np.divide(np.squeeze(zetas_test[:, :dim, :]), np.squeeze(np.sqrt(xv_test[:, dim:, :num_time_interval]))), np.squeeze(xv_test[:, :dim,:num_time_interval]))
     csi0_LR = lr_test[:, :num_time_interval] - np.divide(np.squeeze(zetas_test[:, :dim, :]), np.squeeze(np.sqrt(xv_test[:, dim:, :num_time_interval])))   
     csi0_LR_hat = csi0_LR/np.squeeze(xv_test[:, :dim, :num_time_interval])
-   
+    # endregion
+
+    # region Benchmark comparison
     '''
-    
+
     Testing the solution in comparison to Heath - Platen - Schweizer's solution
-    
+
     '''
 
     ## Compute the solution to the PDE 
@@ -253,8 +266,9 @@ if __name__ == "__main__":
     csi_HPS = dirac_s[:, :num_time_interval] + rho * sigma * np.divide(dirac_v[:, :num_time_interval], np.squeeze(xv_test[:, :dim, :num_time_interval])) 
     csi0_HPS = price_pde[:, :num_time_interval]- np.multiply(csi_HPS[:, :num_time_interval], np.squeeze(xv_test[:, :dim, :num_time_interval]))       
     csi0_HPS_hat = csi0_HPS/np.squeeze(xv_test[:, :dim, :num_time_interval])
-    
-    ## Compute the MSE
+    # endregion
+
+    # region MSE computation
 
     MSEP_t = (lr_test-price_pde)**2
     MSEP_t = np.mean(MSEP_t, axis = 0)
@@ -274,12 +288,13 @@ if __name__ == "__main__":
         
     
     #sys.exit(0)
+    # endregion
 
-
+    # region Plotting
     '''
-    
+
     PLOTS
-    
+
     '''
     if create_figures:
  
@@ -444,4 +459,5 @@ if __name__ == "__main__":
         plt.legend(['N = 100', 'N = 50', 'N = 10', 'N = 100 mean', 'N = 50 mean', 'N = 10 mean'], fontsize = 30, ncol = 2)
         f10.savefig('MSE_shares.pdf', bbox_inches = 'tight', pad_inches = 0.01)
 '''
+    # endregion
 

@@ -1,0 +1,13 @@
+[project]
+name = "deep-quadratic-hedging"
+version = "0.1.0"
+description = "Extension of the deep quadratic hedging framework to rough volatility models."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "scipy>=1.15.3",
+    "tensorflow>=2.21.0",
+]

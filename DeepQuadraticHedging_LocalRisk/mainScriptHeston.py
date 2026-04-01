@@ -407,7 +407,7 @@ if __name__ == "__main__":
             #f7.savefig(path_dir + '/MSE{}.pdf'.format(num_time_interval), bbox_inches = 'tight', pad_inches = 0.01)
 
 
-'''
+        '''
 
         import matplotlib
         matplotlib.rc('font', size=20)
@@ -458,6 +458,6 @@ if __name__ == "__main__":
         plt.ylabel('MSE shares of risky asset', size = 35)
         plt.legend(['N = 100', 'N = 50', 'N = 10', 'N = 100 mean', 'N = 50 mean', 'N = 10 mean'], fontsize = 30, ncol = 2)
         f10.savefig('MSE_shares.pdf', bbox_inches = 'tight', pad_inches = 0.01)
-'''
+        '''
     # endregion
 
